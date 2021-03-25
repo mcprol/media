@@ -121,8 +121,8 @@ public class MediaPlugin extends Plugin {
                 call.success();
             }
         } else {
-            Log.d("DEBUG LOG", "___ERROR ALBUM ALREADY EXISTS");
-            call.error("Album already exists");
+            Log.d("DEBUG LOG", "___SUCCESS ALBUM ALREADY EXISTS");
+            call.success();
         }
 
     }
