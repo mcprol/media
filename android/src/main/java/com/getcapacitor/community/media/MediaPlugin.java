@@ -21,14 +21,20 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.channels.ReadableByteChannel;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 
 @NativePlugin(permissions = {
         Manifest.permission.READ_EXTERNAL_STORAGE,
-        Manifest.permission.WRITE_EXTERNAL_STORAGE
+        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        Manifest.permission.INTERNET
 })
 public class MediaPlugin extends Plugin {
 
@@ -189,9 +195,6 @@ public class MediaPlugin extends Plugin {
         }
         Log.d(LOGTAG, "inputPath: " + String.valueOf(inputPath));
 
-        Uri inputUri = Uri.parse(inputPath);
-        File inputFile = new File(inputUri.getPath());
-
         String album = call.getString("album");
         Log.d(LOGTAG, "album: " + String.valueOf(album));
 
@@ -216,23 +219,6 @@ public class MediaPlugin extends Plugin {
         }
 
         Log.d(LOGTAG,"ALBUM DIR: " + String.valueOf(albumDir));
-
-        try {
-            File expFile = copyFile(inputFile, albumDir);
-            scanPhoto(expFile);
-
-            JSObject result = new JSObject();
-            result.put("filePath", expFile.toString());
-            call.resolve(result);
-
-        } catch (RuntimeException e) {
-            call.reject("RuntimeException occurred", e);
-        }
-
-    }
-
-    private File copyFile(File inputFile, File albumDir) {
-
         // if destination folder does not exist, create it
         if (!albumDir.exists()) {
             if (!albumDir.mkdir()) {
@@ -240,32 +226,82 @@ public class MediaPlugin extends Plugin {
             }
         }
 
-        String absolutePath = inputFile.getAbsolutePath();
-        String extension = absolutePath.substring(absolutePath.lastIndexOf("."));
+        try {
+            Uri inputUri = Uri.parse(inputPath);
+            File targetFile = null;
+            switch (inputUri.getScheme()) {
+                case "http":
+                case "https":
+                    targetFile = downloadFile(new URL(inputPath), albumDir);
+                    break;
+                default:
+                    File inputFile = new File(inputUri.getPath());
+                    targetFile = copyFile(inputFile, albumDir);
+                    break;
+            }
 
-        // generate image file name using current date and time
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmssSSS").format(new Date());
-        File newFile = new File(albumDir, "IMG_" + timeStamp + extension);
+            scanPhoto(targetFile);
+
+            JSObject result = new JSObject();
+            result.put("filePath", targetFile.toString());
+            call.resolve(result);
+
+        } catch (Exception e) {
+            call.reject("Exception occurred", e);
+        }
+
+    }
+
+    private File downloadFile(URL inputUrl, File albumDir) {
+        String targetFileName = generateTargetFileName(inputUrl.toString());
+        File targetFile = new File(albumDir, targetFileName);
+
+        // Read and write image files
+        ReadableByteChannel inChannel = null;
+        try (InputStream inputStream = inputUrl.openStream()) {
+            inChannel = Channels.newChannel(inputUrl.openStream());
+        } catch (Exception e) {
+            throw new RuntimeException("Source file not found: " + String.valueOf(inputUrl) + ", error: " + e.getMessage(), e);
+        }
+
+        return copyChannel(inChannel, targetFile);
+    }
+
+    private File copyFile(File inputFile, File albumDir) {
+        String targetFileName = generateTargetFileName(inputFile.getAbsolutePath());
+        File targetFile = new File(albumDir, targetFileName);
 
         // Read and write image files
         FileChannel inChannel = null;
-        FileChannel outChannel = null;
-
         try {
             inChannel = new FileInputStream(inputFile).getChannel();
         } catch (FileNotFoundException e) {
             throw new RuntimeException("Source file not found: " + String.valueOf(inputFile) + ", error: " + e.getMessage(), e);
         }
+
+        return copyChannel(inChannel, targetFile);
+    }
+
+    private File copyChannel(ReadableByteChannel inChannel, File targetFile) {
+
+        FileChannel outChannel = null;
+        int bufferSize = 128 * 1024;
+
         try {
-            outChannel = new FileOutputStream(newFile).getChannel();
+            outChannel = new FileOutputStream(targetFile).getChannel();
         } catch (FileNotFoundException e) {
-            throw new RuntimeException("Copy file not found: " + String.valueOf(newFile) + ", error: " + e.getMessage(), e);
+            throw new RuntimeException("Target file not found: " + String.valueOf(targetFile) + ", error: " + e.getMessage(), e);
         }
 
         try {
-            inChannel.transferTo(0, inChannel.size(), outChannel);
+            ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+            while (inChannel.read(buffer) != -1) {
+                buffer.flip();
+                outChannel.write(buffer);
+                buffer.clear();
+            }
         } catch (IOException e) {
-            throw new RuntimeException("Error transfering file, error: " + e.getMessage(), e);
+            throw new RuntimeException("Error transferring file, error: " + e.getMessage(), e);
         } finally {
             if (inChannel != null) {
                 try {
@@ -285,7 +321,30 @@ public class MediaPlugin extends Plugin {
             }
         }
 
-        return newFile;
+        return targetFile;
+    }
+
+
+    private String generateTargetFileName(String inputFileName) {
+        String extension = "";
+
+        // retrieves basename
+        int index = inputFileName.lastIndexOf("/");
+        if (index != -1) {
+            String basename = inputFileName.substring(index);
+
+            index = basename.lastIndexOf(".");
+            if (index != -1) {
+                extension = basename.substring(index);
+            }
+        }
+
+        // generate image file name using current date and time
+        String timeStamp = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date());
+
+        String targetFileName = "media_" + timeStamp + extension;
+
+        return targetFileName;
     }
 
     private void scanPhoto(File imageFile) {
