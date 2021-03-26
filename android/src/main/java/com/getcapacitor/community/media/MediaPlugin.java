@@ -232,11 +232,11 @@ public class MediaPlugin extends Plugin {
             switch (inputUri.getScheme()) {
                 case "http":
                 case "https":
-                    targetFile = downloadFile(new URL(inputPath), albumDir);
+                    targetFile = IOUtils.downloadFile(new URL(inputPath), albumDir);
                     break;
                 default:
                     File inputFile = new File(inputUri.getPath());
-                    targetFile = copyFile(inputFile, albumDir);
+                    targetFile = IOUtils.copyFile(inputFile, albumDir);
                     break;
             }
 
@@ -252,100 +252,7 @@ public class MediaPlugin extends Plugin {
 
     }
 
-    private File downloadFile(URL inputUrl, File albumDir) {
-        String targetFileName = generateTargetFileName(inputUrl.toString());
-        File targetFile = new File(albumDir, targetFileName);
 
-        // Read and write image files
-        ReadableByteChannel inChannel = null;
-        try (InputStream inputStream = inputUrl.openStream()) {
-            inChannel = Channels.newChannel(inputUrl.openStream());
-        } catch (Exception e) {
-            throw new RuntimeException("Source file not found: " + String.valueOf(inputUrl) + ", error: " + e.getMessage(), e);
-        }
-
-        return copyChannel(inChannel, targetFile);
-    }
-
-    private File copyFile(File inputFile, File albumDir) {
-        String targetFileName = generateTargetFileName(inputFile.getAbsolutePath());
-        File targetFile = new File(albumDir, targetFileName);
-
-        // Read and write image files
-        FileChannel inChannel = null;
-        try {
-            inChannel = new FileInputStream(inputFile).getChannel();
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException("Source file not found: " + String.valueOf(inputFile) + ", error: " + e.getMessage(), e);
-        }
-
-        return copyChannel(inChannel, targetFile);
-    }
-
-    private File copyChannel(ReadableByteChannel inChannel, File targetFile) {
-
-        FileChannel outChannel = null;
-        int bufferSize = 128 * 1024;
-
-        try {
-            outChannel = new FileOutputStream(targetFile).getChannel();
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException("Target file not found: " + String.valueOf(targetFile) + ", error: " + e.getMessage(), e);
-        }
-
-        try {
-            ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
-            while (inChannel.read(buffer) != -1) {
-                buffer.flip();
-                outChannel.write(buffer);
-                buffer.clear();
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Error transferring file, error: " + e.getMessage(), e);
-        } finally {
-            if (inChannel != null) {
-                try {
-                    inChannel.close();
-                } catch (IOException e) {
-                    Log.d(LOGTAG, "SaveImage. Error closing input file channel: ", e);
-                    // does not harm, do nothing
-                }
-            }
-            if (outChannel != null) {
-                try {
-                    outChannel.close();
-                } catch (IOException e) {
-                    Log.d(LOGTAG, "SaveImage. Error closing output file channel: ", e);
-                    // does not harm, do nothing
-                }
-            }
-        }
-
-        return targetFile;
-    }
-
-
-    private String generateTargetFileName(String inputFileName) {
-        String extension = "";
-
-        // retrieves basename
-        int index = inputFileName.lastIndexOf("/");
-        if (index != -1) {
-            String basename = inputFileName.substring(index);
-
-            index = basename.lastIndexOf(".");
-            if (index != -1) {
-                extension = basename.substring(index);
-            }
-        }
-
-        // generate image file name using current date and time
-        String timeStamp = new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date());
-
-        String targetFileName = "media_" + timeStamp + extension;
-
-        return targetFileName;
-    }
 
     private void scanPhoto(File imageFile) {
         Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
