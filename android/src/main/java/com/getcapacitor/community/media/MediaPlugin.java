@@ -2,6 +2,7 @@ package com.getcapacitor.community.media;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -17,28 +18,32 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
-import java.nio.channels.ReadableByteChannel;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
-
-@NativePlugin(permissions = {
-        Manifest.permission.READ_EXTERNAL_STORAGE,
-        Manifest.permission.WRITE_EXTERNAL_STORAGE,
-        Manifest.permission.INTERNET
-})
+@NativePlugin(
+        permissions = {
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.INTERNET
+        },
+        requestCodes = {
+                MediaPlugin.REQUEST_CODE_GET_ALBUMS,
+                MediaPlugin.REQUEST_CODE_CREATE_ALBUM,
+                MediaPlugin.REQUEST_CODE_SAVE_IMAGE,
+                MediaPlugin.REQUEST_CODE_SAVE_VIDEO,
+                MediaPlugin.REQUEST_CODE_STORAGE_PERMISSION,
+        }
+)
 public class MediaPlugin extends Plugin {
 
     private static final String LOGTAG = "MediaPlugin";
+
+    private static final int REQUEST_CODE_BASE = 2020;
+    public static final int REQUEST_CODE_GET_ALBUMS = REQUEST_CODE_BASE + 1;
+    public static final int REQUEST_CODE_CREATE_ALBUM = REQUEST_CODE_BASE + 2;
+    public static final int REQUEST_CODE_SAVE_IMAGE = REQUEST_CODE_BASE + 3;
+    public static final int REQUEST_CODE_SAVE_VIDEO = REQUEST_CODE_BASE + 4;
+    public static final int REQUEST_CODE_STORAGE_PERMISSION = REQUEST_CODE_BASE + 5;
 
     // @todo
     @PluginMethod()
@@ -46,16 +51,84 @@ public class MediaPlugin extends Plugin {
         call.unimplemented();
     }
 
+    // @todo
+    @PluginMethod()
+    public void getPhotos(PluginCall call) {
+        call.unimplemented();
+    }
+
     @PluginMethod()
     public void getAlbums(PluginCall call) {
-        Log.d(LOGTAG, "GET ALBUMS");
-        if (hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)) {
-            Log.d(LOGTAG, "HAS PERMISSION");
-            _getAlbums(call);
+        CallExecutor executor = getCallExecutor(REQUEST_CODE_GET_ALBUMS);
+        executor.run(call);
+    }
+
+    @PluginMethod()
+    public void createAlbum(PluginCall call) {
+        CallExecutor executor = getCallExecutor(REQUEST_CODE_CREATE_ALBUM);
+        executor.run(call);
+    }
+
+    @PluginMethod()
+    public void savePhoto(PluginCall call) {
+        CallExecutor executor = getCallExecutor(REQUEST_CODE_SAVE_IMAGE);
+        executor.run(call);
+    }
+
+    @PluginMethod()
+    public void saveVideo(PluginCall call) {
+        CallExecutor executor = getCallExecutor(REQUEST_CODE_SAVE_VIDEO);
+        executor.run(call);
+    }
+
+    @PluginMethod()
+    public void saveGif(PluginCall call) {
+        CallExecutor executor = getCallExecutor(REQUEST_CODE_SAVE_IMAGE);
+        executor.run(call);
+    }
+
+    @PluginMethod()
+    public void hasStoragePermission(PluginCall call) {
+        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+            call.success();
         } else {
-            Log.d(LOGTAG, "NOT ALLOWED");
-            saveCall(call);
-            pluginRequestPermission(Manifest.permission.READ_EXTERNAL_STORAGE, 1986);
+            call.error("StoragePermission was denied");
+        }
+    }
+
+    @PluginMethod()
+    public void requestStoragePermission(PluginCall call) {
+        CallExecutor executor = getCallExecutor(REQUEST_CODE_STORAGE_PERMISSION);
+        executor.run(call);
+    }
+
+    @Override
+    protected void handleRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        Log.d(LOGTAG, "handleRequestPermissionsResult: " + requestCode);
+
+        PluginCall call = getSavedCall();
+        if (call == null) {
+            Log.d(LOGTAG,"No stored PluginCall for permissions request result");
+            return;
+        }
+
+        for(int result : grantResults) {
+            if (result == PackageManager.PERMISSION_DENIED) {
+                call.error("Permission denied for requestCode: " + requestCode);
+                return;
+            }
+        }
+        boolean permissionGranted = true;
+
+        CallExecutor executor = getCallExecutor(requestCode);
+        if (executor != null) {
+            if (permissionGranted) {
+                executor.execute(call);
+            } else {
+                call.error("Permission denied for requestCode: " + requestCode);
+            }
+        } else {
+            call.error("Unknown CallExecutor for requestCode: " + requestCode);
         }
     }
 
@@ -86,25 +159,6 @@ public class MediaPlugin extends Plugin {
         call.resolve(response);
     }
 
-
-    @PluginMethod()
-    public void getPhotos(PluginCall call) {
-        call.unimplemented();
-    }
-
-    @PluginMethod()
-    public void createAlbum(PluginCall call) {
-        Log.d(LOGTAG, "CREATE ALBUM");
-        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            Log.d(LOGTAG, "HAS PERMISSION");
-            _createAlbum(call);
-        } else {
-            Log.d(LOGTAG, "NOT ALLOWED");
-            saveCall(call);
-            pluginRequestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1986);
-        }
-    }
-
     private void _createAlbum(PluginCall call) {
         String folderName = call.getString("name");
         Log.d(LOGTAG, "___CREATE ALBUM: " + String.valueOf(folderName));
@@ -113,7 +167,7 @@ public class MediaPlugin extends Plugin {
 
         if (Build.VERSION.SDK_INT >= 29) {
             folder = getContext().getExternalMediaDirs()[0].getAbsolutePath()+"/"+folderName;
-        }else{
+        } else {
             folder = Environment.getExternalStoragePublicDirectory(folderName).toString();
         }
 
@@ -133,60 +187,10 @@ public class MediaPlugin extends Plugin {
             Log.d(LOGTAG, "___SUCCESS ALBUM ALREADY EXISTS");
             call.success();
         }
-
     }
-
-
-    @PluginMethod()
-    public void savePhoto(PluginCall call) {
-        Log.d(LOGTAG, "SAVE PHOTO TO ALBUM");
-        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            Log.d(LOGTAG, "HAS PERMISSION");
-            _saveMedia(call, "PICTURES");
-        } else {
-            Log.d(LOGTAG, "NOT ALLOWED");
-            saveCall(call);
-            pluginRequestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1986);
-            Log.d(LOGTAG, "___SAVE PHOTO TO ALBUM AFTER PERMISSION REQUEST");
-        }
-    }
-
-    @PluginMethod()
-    public void saveVideo(PluginCall call) {
-        Log.d(LOGTAG, "SAVE VIDEO TO ALBUM");
-        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            Log.d(LOGTAG, "HAS PERMISSION");
-            _saveMedia(call, "MOVIES");
-        } else {
-            Log.d(LOGTAG, "NOT ALLOWED");
-            saveCall(call);
-            pluginRequestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1986);
-        }
-    }
-
-
-    @PluginMethod()
-    public void saveGif(PluginCall call) {
-        Log.d(LOGTAG, "SAVE GIF TO ALBUM");
-        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            Log.d(LOGTAG, "HAS PERMISSION");
-            _saveMedia(call, "PICTURES");
-        } else {
-            Log.d(LOGTAG, "NOT ALLOWED");
-            saveCall(call);
-            pluginRequestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1986);
-        }
-    }
-
 
     private void _saveMedia(PluginCall call, String destination) {
         Log.d(LOGTAG, "___SAVE MEDIA TO ALBUM: " + String.valueOf(destination));
-        String dest;
-        if ("MOVIES".equalsIgnoreCase(destination)) {
-            dest = Environment.DIRECTORY_MOVIES;
-        } else {
-            dest = Environment.DIRECTORY_PICTURES;
-        }
 
         String inputPath = call.getString("path");
         if (inputPath == null) {
@@ -205,8 +209,8 @@ public class MediaPlugin extends Plugin {
         if (Build.VERSION.SDK_INT >= 29) {
             albumPath = getContext().getExternalMediaDirs()[0].getAbsolutePath();
 
-        } else{
-            albumPath = Environment.getExternalStoragePublicDirectory(dest).getAbsolutePath();
+        } else {
+            albumPath = Environment.getExternalStoragePublicDirectory(destination).getAbsolutePath();
         }
         Log.d(LOGTAG,"albumPath: " + String.valueOf(albumPath));
 
@@ -252,8 +256,6 @@ public class MediaPlugin extends Plugin {
 
     }
 
-
-
     private void scanPhoto(File imageFile) {
         Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
         Uri contentUri = Uri.fromFile(imageFile);
@@ -261,23 +263,116 @@ public class MediaPlugin extends Plugin {
         bridge.getActivity().sendBroadcast(mediaScanIntent);
     }
 
-    @PluginMethod()
-    public void hasStoragePermission(PluginCall call) {
-        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            call.success();
-        } else {
-            call.error("permission denied WRITE_EXTERNAL_STORAGE");
+    private CallExecutor getCallExecutor(int requestCode) {
+        switch (requestCode) {
+            case REQUEST_CODE_GET_ALBUMS:
+                return new GetAlbumsCallExecutor(requestCode);
+            case REQUEST_CODE_CREATE_ALBUM:
+                return new CreateAlbumCallExecutor(requestCode);
+            case REQUEST_CODE_SAVE_IMAGE:
+                return new SaveImageCallExecutor(requestCode);
+            case REQUEST_CODE_SAVE_VIDEO:
+                return new SaveVideoCallExecutor(requestCode);
+            case REQUEST_CODE_STORAGE_PERMISSION:
+                return new StoragePermissionCallExecutor(requestCode);
+            default:
+                Log.e(LOGTAG,"Unknown CallExecutor for requestCode: " + requestCode);
+                return null;
         }
     }
 
-    @PluginMethod()
-    public void requestStoragePermission(PluginCall call) {
-        pluginRequestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1986);
-        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            call.success();
-        }else{
-            call.error("permission denied");
+    private abstract class CallExecutor {
+        protected int requestCode;
+        protected String permission;
+
+        public CallExecutor(int requestCode, String permission) {
+            this.requestCode = requestCode;
+            this.permission = permission;
+        }
+
+        public void run(PluginCall call) {
+            try {
+                if (hasPermission(permission)) {
+                    Log.d(LOGTAG, permission + " already granted");
+                    execute(call);
+                } else {
+                    Log.d(LOGTAG, "requesting for " + permission);
+                    saveCall(call);
+                    pluginRequestPermission(permission, requestCode);
+                }
+            } catch (Exception e) {
+                Log.e(LOGTAG, "[EXCEPTION]: " + e.getMessage(), e);
+                call.error(e.getMessage(), e);
+            }
+        }
+
+        public void execute(PluginCall call) {
+            try {
+                _execute(call);
+            } catch (Exception e) {
+                Log.e(LOGTAG, "[EXCEPTION]: " + e.getMessage(), e);
+                call.error(e.getMessage(), e);
+            }
+        }
+
+        public String getPermission() {
+            return permission;
+        }
+
+        public int getRequestCode() {
+            return requestCode;
+        }
+
+        public abstract void _execute(PluginCall call);
+    }
+
+    private class GetAlbumsCallExecutor extends CallExecutor {
+        public GetAlbumsCallExecutor(int requestCode) {
+            super(requestCode, Manifest.permission.READ_EXTERNAL_STORAGE);
+        }
+
+        public void _execute(PluginCall call) {
+            _getAlbums(call);
         }
     }
 
+    private class CreateAlbumCallExecutor extends CallExecutor {
+        public CreateAlbumCallExecutor(int requestCode) {
+            super(requestCode, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+
+        public void _execute(PluginCall call) {
+            _createAlbum(call);
+        }
+    }
+
+    private class SaveImageCallExecutor extends CallExecutor {
+        public SaveImageCallExecutor(int requestCode) {
+            super(requestCode, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+
+        public void _execute(PluginCall call) {
+            _saveMedia(call, Environment.DIRECTORY_PICTURES);
+        }
+    }
+
+    private class SaveVideoCallExecutor extends CallExecutor {
+        public SaveVideoCallExecutor(int requestCode) {
+            super(requestCode, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+
+        public void _execute(PluginCall call) {
+            _saveMedia(call, Environment.DIRECTORY_MOVIES);
+        }
+    }
+
+    private class StoragePermissionCallExecutor extends CallExecutor {
+        public StoragePermissionCallExecutor(int requestCode) {
+            super(requestCode, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+
+        public void _execute(PluginCall call) {
+            hasStoragePermission(call);
+        }
+    }
 }

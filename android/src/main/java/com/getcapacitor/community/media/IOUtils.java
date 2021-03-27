@@ -1,5 +1,7 @@
 package com.getcapacitor.community.media;
 
+import android.util.Log;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -14,10 +16,10 @@ import java.util.Date;
 import java.util.Random;
 
 public class IOUtils {
-    private static final String LOGTAG = "MediaPlugin";
+    private static final String LOGTAG = "MediaPlugin/IOUtils";
     private static Random r = new Random();
 
-    public static File downloadFile(URL inputUrl, File albumDir) {
+    public static File downloadFile(URL inputUrl, File albumDir) throws Exception {
         String targetFileName = generateTargetFileName(inputUrl.toString());
         File targetFile = new File(albumDir, targetFileName);
 
@@ -27,11 +29,12 @@ public class IOUtils {
             inChannel = Channels.newChannel(inputUrl.openStream());
             return copyChannel(inChannel, targetFile);
         } catch (Exception e) {
-            throw new RuntimeException("Error trying download file: " + String.valueOf(inputUrl) + ", error: " + e.getMessage(), e);
+            Log.e(LOGTAG,"Error trying download file: " + String.valueOf(inputUrl) + ", error: " + e.getMessage());
+            throw e;
         }
     }
 
-    public static File copyFile(File inputFile, File albumDir) {
+    public static File copyFile(File inputFile, File albumDir) throws Exception {
         String targetFileName = generateTargetFileName(inputFile.getAbsolutePath());
         File targetFile = new File(albumDir, targetFileName);
 
@@ -39,7 +42,8 @@ public class IOUtils {
             FileChannel inChannel = is.getChannel();
             return copyChannel(inChannel, targetFile);
         } catch (Exception e) {
-            throw new RuntimeException("Error trying copy file: " + String.valueOf(inputFile) + ", error: " + e.getMessage(), e);
+            Log.e(LOGTAG,"Error trying copy file: " + String.valueOf(inputFile) + ", error: " + e.getMessage());
+            throw e;
         }
     }
 
@@ -57,10 +61,10 @@ public class IOUtils {
 
             return targetFile;
         } catch (Exception e) {
-            throw new Exception("Error transferring file: " + e.getMessage(), e);
+            Log.e(LOGTAG, "Error transferring file: " + e.getMessage());
+            throw e;
         }
     }
-
 
     private static String generateTargetFileName(String inputFileName) {
         String extension = "";
