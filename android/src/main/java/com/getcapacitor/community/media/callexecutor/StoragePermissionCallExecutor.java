@@ -6,14 +6,13 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 
-public class StoragePermissionCallExecutor extends CallExecutor {
-    private static final String LOGTAG = "MediaPlugin/CallExec";
-
+public class StoragePermissionCallExecutor extends SyncCallExecutor {
     public StoragePermissionCallExecutor(Plugin plugin, int requestCode) {
         super(plugin, requestCode, Manifest.permission.WRITE_EXTERNAL_STORAGE);
     }
 
-    public JSObject _execute(PluginCall call) throws Exception {
+    @Override
+    public JSObject syncExecute(PluginCall call) throws Exception {
         if (!hasStoragePermission()) {
             throw new Exception ("Storage permission was denied");
         }

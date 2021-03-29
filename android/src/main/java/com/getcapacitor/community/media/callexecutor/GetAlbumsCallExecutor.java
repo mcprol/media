@@ -10,19 +10,19 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 
-public class GetAlbumsCallExecutor extends CallExecutor {
-    private static final String LOGTAG = "MediaPlugin/CallExec";
+public class GetAlbumsCallExecutor extends SyncCallExecutor {
 
     public GetAlbumsCallExecutor(Plugin plugin, int requestCode) {
         super(plugin, requestCode, Manifest.permission.READ_EXTERNAL_STORAGE);
     }
 
-    public JSObject _execute(PluginCall call) throws Exception {
+    @Override
+    public JSObject syncExecute(PluginCall call) throws Exception {
         return getAlbums(call);
     }
 
     private JSObject getAlbums(PluginCall call) {
-        Log.d(LOGTAG, "___GET ALBUMS");
+        Log.d(LOG_TAG, "___GET ALBUMS");
 
         JSObject response = new JSObject();
         JSArray albums = new JSArray();
@@ -42,8 +42,8 @@ public class GetAlbumsCallExecutor extends CallExecutor {
         }
 
         response.put("albums", albums);
-        Log.d(LOGTAG, String.valueOf(response));
-        Log.d(LOGTAG, "___GET ALBUMS FINISHED");
+        Log.d(LOG_TAG, String.valueOf(response));
+        Log.d(LOG_TAG, "___GET ALBUMS FINISHED");
 
         return response;
     }

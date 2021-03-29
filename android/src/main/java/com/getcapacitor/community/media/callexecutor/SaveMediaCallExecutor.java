@@ -1,5 +1,6 @@
 package com.getcapacitor.community.media.callexecutor;
 
+import android.Manifest;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -14,46 +15,54 @@ import com.getcapacitor.community.media.IOUtils;
 import java.io.File;
 import java.net.URL;
 
-public abstract class SaveMediaCallExecutor extends CallExecutor {
-    private static final String LOGTAG = "MediaPlugin/CallExec";
+public class SaveMediaCallExecutor extends AsyncCallExecutor {
+    private String destination;
 
-    public SaveMediaCallExecutor(Plugin plugin, int requestCode, String permission) {
-        super(plugin, requestCode, permission);
+    public SaveMediaCallExecutor(Plugin plugin, int requestCode, String destination) {
+        super(plugin, requestCode, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        this.destination = destination;
+    }
+
+    @Override
+    public JSObject asyncExecute(PluginCall call) throws Exception {
+        return saveMedia(call, destination);
     }
 
     protected JSObject saveMedia(PluginCall call, String destination) throws Exception {
-        Log.d(LOGTAG, "___SAVE MEDIA TO ALBUM: " + String.valueOf(destination));
+        Log.d(LOG_TAG, "___SAVE MEDIA TO ALBUM: " + String.valueOf(destination));
 
         String inputPath = call.getString("path");
         if (inputPath == null) {
             throw new Exception("Required param: 'path'");
         }
-        Log.d(LOGTAG, "inputPath: " + String.valueOf(inputPath));
+        Log.d(LOG_TAG, "inputPath: " + String.valueOf(inputPath));
 
-        String album = call.getString("album");
-        Log.d(LOGTAG, "album: " + String.valueOf(album));
-
-        File albumDir = null;
         String albumPath;
 
-        Log.d(LOGTAG,"SDK BUILD VERSION: " + String.valueOf(Build.VERSION.SDK_INT));
+        Log.d(LOG_TAG,"SDK BUILD VERSION: " + String.valueOf(Build.VERSION.SDK_INT));
         if (Build.VERSION.SDK_INT >= 29) {
-            albumPath = plugin.getContext().getExternalMediaDirs()[0].getAbsolutePath();
+            File[] externalMediaDirs = plugin.getContext().getExternalMediaDirs();
+            for (int i=0; i<externalMediaDirs.length; i++) {
+                Log.d(LOG_TAG,"externalMediaDir[" + i + "]: " + String.valueOf(externalMediaDirs[i].getAbsolutePath()));
+            }
+            albumPath = externalMediaDirs[0].getAbsolutePath();
         } else {
             albumPath = Environment.getExternalStoragePublicDirectory(destination).getAbsolutePath();
         }
-        Log.d(LOGTAG,"albumPath: " + String.valueOf(albumPath));
+        Log.d(LOG_TAG,"albumPath: " + String.valueOf(albumPath));
 
-        // Log.d("ENV LOG", String.valueOf(getContext().getExternalMediaDirs()));
+        String album = call.getString("album");
+        Log.d(LOG_TAG, "album: " + String.valueOf(album));
 
+        File albumDir = null;
         if (album != null) {
             albumDir = new File(albumPath, album);
         } else{
             albumDir = new File(albumPath);
         }
+        Log.d(LOG_TAG,"ALBUM DIR: " + String.valueOf(albumDir));
 
         // if destination folder does not exist, create it
-        Log.d(LOGTAG,"ALBUM DIR: " + String.valueOf(albumDir));
         if (!albumDir.exists()) {
             if (!albumDir.mkdir()) {
                 throw new Exception("Destination folder does not exist and cannot be created: " + String.valueOf(albumDir));
@@ -65,11 +74,11 @@ public abstract class SaveMediaCallExecutor extends CallExecutor {
         switch (inputUri.getScheme()) {
             case "http":
             case "https":
-                targetFile = IOUtils.downloadFile(new URL(inputPath), albumDir);
+                targetFile = new IOUtils().downloadFile(new URL(inputPath), albumDir);
                 break;
             default:
                 File inputFile = new File(inputUri.getPath());
-                targetFile = IOUtils.copyFile(inputFile, albumDir);
+                targetFile = new IOUtils().copyFile(inputFile, albumDir);
                 break;
         }
 
@@ -87,5 +96,4 @@ public abstract class SaveMediaCallExecutor extends CallExecutor {
         mediaScanIntent.setData(contentUri);
         plugin.getBridge().getActivity().sendBroadcast(mediaScanIntent);
     }
-
 }
