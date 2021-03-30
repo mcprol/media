@@ -57,7 +57,7 @@ public class SaveMediaCallExecutor extends AsyncCallExecutor {
         File albumDir = null;
         if (album != null) {
             albumDir = new File(albumPath, album);
-        } else{
+        } else {
             albumDir = new File(albumPath);
         }
         Log.d(LOG_TAG,"ALBUM DIR: " + String.valueOf(albumDir));

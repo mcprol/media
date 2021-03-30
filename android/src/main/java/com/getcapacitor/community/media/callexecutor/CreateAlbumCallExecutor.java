@@ -23,17 +23,20 @@ public class CreateAlbumCallExecutor extends SyncCallExecutor {
     }
 
     private JSObject createAlbum(PluginCall call) throws Exception {
-        String folderName = call.getString("name");
-        Log.d(LOG_TAG, "___CREATE ALBUM: " + String.valueOf(folderName));
 
-        String folder;
+        String albumName = call.getString("name");
+        Log.d(LOG_TAG, "___CREATE ALBUM: " + String.valueOf(albumName));
+
+        String parentFolder;
 
         if (Build.VERSION.SDK_INT >= 29) {
-            folder = plugin.getContext().getExternalMediaDirs()[0].getAbsolutePath()+"/"+folderName;
+            parentFolder = plugin.getContext().getExternalMediaDirs()[0].getAbsolutePath();
         } else {
-            folder = Environment.getExternalStoragePublicDirectory(folderName).toString();
+            String destination = Environment.DIRECTORY_PICTURES;
+            parentFolder = Environment.getExternalStoragePublicDirectory(destination).toString();
         }
 
+        String folder = parentFolder  + "/" + albumName;
         Log.d(LOG_TAG, "New album folder: " + String.valueOf(folder));
 
         File f = new File(folder);

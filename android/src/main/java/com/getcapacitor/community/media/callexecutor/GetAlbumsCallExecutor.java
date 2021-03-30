@@ -18,10 +18,10 @@ public class GetAlbumsCallExecutor extends SyncCallExecutor {
 
     @Override
     public JSObject syncExecute(PluginCall call) throws Exception {
-        return getAlbums(call);
+        return getAlbums();
     }
 
-    private JSObject getAlbums(PluginCall call) {
+    private JSObject getAlbums() {
         Log.d(LOG_TAG, "___GET ALBUMS");
 
         JSObject response = new JSObject();
@@ -42,8 +42,7 @@ public class GetAlbumsCallExecutor extends SyncCallExecutor {
         }
 
         response.put("albums", albums);
-        Log.d(LOG_TAG, String.valueOf(response));
-        Log.d(LOG_TAG, "___GET ALBUMS FINISHED");
+        Log.d(LOG_TAG, "getAlbums(): " + String.valueOf(response));
 
         return response;
     }

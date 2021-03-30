@@ -16,7 +16,7 @@ import java.util.Date;
 import java.util.Random;
 
 public class IOUtils {
-    private static final String LOGTAG = "MediaPlugin/IOUtils";
+    private static final String LOG_TAG = "MediaPlugin/IOUtils";
     private static Random r = new Random();
 
     public static File downloadFile(URL inputUrl, File albumDir) throws Exception {
@@ -29,7 +29,7 @@ public class IOUtils {
             inChannel = Channels.newChannel(inputUrl.openStream());
             return copyChannel(inChannel, targetFile);
         } catch (Exception e) {
-            Log.e(LOGTAG,"Error trying download file: " + String.valueOf(inputUrl) + ", error: " + e.getMessage());
+            Log.e(LOG_TAG,"Error trying download file: " + String.valueOf(inputUrl) + ", error: " + e.getMessage());
             throw e;
         }
     }
@@ -42,7 +42,7 @@ public class IOUtils {
             FileChannel inChannel = is.getChannel();
             return copyChannel(inChannel, targetFile);
         } catch (Exception e) {
-            Log.e(LOGTAG,"Error trying copy file: " + String.valueOf(inputFile) + ", error: " + e.getMessage());
+            Log.e(LOG_TAG,"Error trying copy file: " + String.valueOf(inputFile) + ", error: " + e.getMessage());
             throw e;
         }
     }
@@ -59,9 +59,10 @@ public class IOUtils {
                 buffer.clear();
             }
 
+            Log.d(LOG_TAG,"File copied to : " + String.valueOf(targetFile.getAbsolutePath()));
             return targetFile;
         } catch (Exception e) {
-            Log.e(LOGTAG, "Error transferring file: " + e.getMessage());
+            Log.e(LOG_TAG, "Error transferring file: " + e.getMessage());
             throw e;
         }
     }
