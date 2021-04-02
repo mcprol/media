@@ -19,7 +19,7 @@ public abstract class AsyncCallExecutor extends CallExecutor {
             asyncTaskExecutor.execute();
         } catch (Exception e) {
             Log.e(LOG_TAG, "[EXCEPTION]: " + e.getMessage(), e);
-            call.reject(e.getMessage(), e);
+            call.error(e.getMessage(), e);
         }
     }
 
@@ -54,17 +54,17 @@ public abstract class AsyncCallExecutor extends CallExecutor {
 
         @Override
         protected void onPostExecute(JSObject response) {
-            // on error, return reject
+            // on error
             if (this.e != null) {
-                call.reject(e.getMessage(), e);
+                call.error(e.getMessage(), e);
                 return;
             }
 
-            // on success, resolve
+            // on success
             if (response == null) {
-                call.resolve();
+                call.success();
             } else {
-                call.resolve(response);
+                call.success(response);
             }
         }
     }

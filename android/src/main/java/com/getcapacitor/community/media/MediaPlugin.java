@@ -85,9 +85,9 @@ public class MediaPlugin extends Plugin {
         StoragePermissionCallExecutor storagePermissionCallExecutor = (StoragePermissionCallExecutor)executor;
 
         if (storagePermissionCallExecutor.hasStoragePermission()) {
-            call.resolve();
+            call.success();
         } else {
-            call.reject("Storage permission was denied");
+            call.error("Storage permission was denied");
         }
     }
 
@@ -109,7 +109,7 @@ public class MediaPlugin extends Plugin {
 
         for(int result : grantResults) {
             if (result == PackageManager.PERMISSION_DENIED) {
-                call.reject("Permission denied for requestCode: " + requestCode);
+                call.error("Permission denied for requestCode: " + requestCode);
                 return;
             }
         }
@@ -120,10 +120,10 @@ public class MediaPlugin extends Plugin {
             if (permissionGranted) {
                 executor.execute(call);
             } else {
-                call.reject("Permission denied for requestCode: " + requestCode);
+                call.error("Permission denied for requestCode: " + requestCode);
             }
         } else {
-            call.reject("Unknown CallExecutor for requestCode: " + requestCode);
+            call.error("Unknown CallExecutor for requestCode: " + requestCode);
         }
     }
 }

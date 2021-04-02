@@ -16,13 +16,13 @@ public abstract class SyncCallExecutor extends CallExecutor {
         try {
             JSObject response = syncExecute(call);
             if (response == null) {
-                call.resolve();
+                call.success();
             } else {
-                call.resolve(response);
+                call.success(response);
             }
         } catch (Exception e) {
             Log.e(LOG_TAG, "[EXCEPTION]: " + e.getMessage(), e);
-            call.reject(e.getMessage(), e);
+            call.error(e.getMessage(), e);
         }
     }
 

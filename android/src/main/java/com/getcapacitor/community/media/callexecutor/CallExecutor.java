@@ -30,7 +30,7 @@ public abstract class CallExecutor {
             }
         } catch (Exception e) {
             Log.e(LOG_TAG, "[EXCEPTION]: " + e.getMessage(), e);
-            call.reject(e.getMessage(), e);
+            call.error(e.getMessage(), e);
         }
     }
 
