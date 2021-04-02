@@ -73,7 +73,9 @@ media
 // Get a list of user albums
 media
   .getAlbums()
-  .then(console.log) // -> { albums: [{name:'My Album', identifier:'A1-B2-C3-D4'}, {name:'My Another Album', identifier:'E5-F6-G7-H8'}]}
+  .then(albums => {
+    console.log(albums); // -> { albums: [{name:'My Album', identifier:'A1-B2-C3-D4'}, {name:'My Another Album', identifier:'E5-F6-G7-H8'}]}
+  }) 
   .catch(console.log);
 ```
 
