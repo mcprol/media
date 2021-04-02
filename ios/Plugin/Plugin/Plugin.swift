@@ -16,8 +16,13 @@ public class JSDate {
 @objc(MediaPlugin)
 public class MediaPlugin: CAPPlugin {
     typealias JSObject = [String:Any]
+
+    static let MEDIA_PHOTO = "photos";
+    static let MEDIA_VIDEO = "video";
+    static let MEDIA_GIF = "gif";
+    
     static let DEFAULT_QUANTITY = 25
-    static let DEFAULT_TYPES = "photos"
+    static let DEFAULT_TYPES = MEDIA_PHOTO
     static let DEFAULT_THUMBNAIL_WIDTH = 256
     static let DEFAULT_THUMBNAIL_HEIGHT = 256
     
@@ -60,110 +65,25 @@ public class MediaPlugin: CAPPlugin {
             call.error("Access to photos not allowed by user")
         })
     }
+
     
     @objc func savePhoto(_ call: CAPPluginCall) {
-        guard let data = call.getString("path") else {
-            call.error("Must provide the data path")
-            return
-        }
-        
-        let albumId = call.getString("album")
-        var targetCollection: PHAssetCollection?
-        
-        if albumId != nil {
-            let albumFetchResult = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumId!], options: nil)
-            albumFetchResult.enumerateObjects({ (collection, count, _) in
-                targetCollection = collection
-            })
-            if targetCollection == nil {
-                call.error("Unable to find that album")
-                return
-            }
-            if !targetCollection!.canPerform(.addContent) {
-                call.error("Album doesn't support adding content (is this a smart album?)")
-                return
-            }
-        }
-        
-        checkAuthorization(allowed: {
-            // Add it to the photo library.
-            PHPhotoLibrary.shared().performChanges({
-                
-                let url = URL(string: data)
-                let data = try? Data(contentsOf: url!)
-                if (data != nil) {
-                    let image = UIImage(data: data!)
-                    let creationRequest = PHAssetChangeRequest.creationRequestForAsset(from: image!)
-                    
-                    if let collection = targetCollection {
-                        let addAssetRequest = PHAssetCollectionChangeRequest(for: collection)
-                        addAssetRequest?.addAssets([creationRequest.placeholderForCreatedAsset! as Any] as NSArray)
-                    }
-                } else {
-                    call.error("Could not convert fileURL into Data");
-                }
-                
-            }, completionHandler: {success, error in
-                if !success {
-                    call.error("Unable to save image to album", error)
-                } else {
-                    call.success()
-                }
-            })
-        }, notAllowed: {
-            call.error("Access to photos not allowed by user")
-        })
-
+        self.saveMedia(call, MediaPlugin.MEDIA_PHOTO)
     }
+  
     
     @objc func saveVideo(_ call: CAPPluginCall) {
-        guard let data = call.getString("path") else {
-            call.error("Must provide the data path")
-            return
-        }
-        
-        let albumId = call.getString("album")
-        var targetCollection: PHAssetCollection?
-        
-        if albumId != nil {
-            let albumFetchResult = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumId!], options: nil)
-            albumFetchResult.enumerateObjects({ (collection, count, _) in
-                targetCollection = collection
-            })
-            if targetCollection == nil {
-                call.error("Unable to find that album")
-                return
-            }
-            if !targetCollection!.canPerform(.addContent) {
-                call.error("Album doesn't support adding content (is this a smart album?)")
-                return
-            }
-        }
-        
-        checkAuthorization(allowed: {
-            // Add it to the photo library.
-            PHPhotoLibrary.shared().performChanges({
-                let creationRequest = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: URL(string: data)!)
-                
-                if let collection = targetCollection {
-                    let addAssetRequest = PHAssetCollectionChangeRequest(for: collection)
-                    addAssetRequest?.addAssets([creationRequest?.placeholderForCreatedAsset! as Any] as NSArray)
-                }
-            }, completionHandler: {success, error in
-                if !success {
-                    call.error("Unable to save video to album", error)
-                } else {
-                    call.success()
-                }
-            })
-        }, notAllowed: {
-            call.error("Access to photos not allowed by user")
-        })
-        
+        self.saveMedia(call, MediaPlugin.MEDIA_VIDEO)
     }
+
     
     @objc func saveGif(_ call: CAPPluginCall) {
-        guard let data = call.getString("path") else {
+        self.saveMedia(call, MediaPlugin.MEDIA_PHOTO)
+    }
+    
+
+    func saveMedia(_ call: CAPPluginCall, _ mediaType: String) {
+        guard let path = call.getString("path") else {
             call.error("Must provide the data path")
             return
         }
@@ -187,19 +107,36 @@ public class MediaPlugin: CAPPlugin {
         }
         
         checkAuthorization(allowed: {
+            // creates a temp file to save the input URL content
+            let tempFileURL = self.copyToTempFile(path)
+            
             // Add it to the photo library.
             PHPhotoLibrary.shared().performChanges({
-                
-                let creationRequest = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: URL(string: data)!)
-                
-                if let collection = targetCollection {
-                    let addAssetRequest = PHAssetCollectionChangeRequest(for: collection)
-                    addAssetRequest?.addAssets([creationRequest?.placeholderForCreatedAsset! as Any] as NSArray)
+                if (tempFileURL != nil) {
+                    // creates the request to add to album
+                    var creationRequest: PHAssetChangeRequest?
+                    if (mediaType == MediaPlugin.MEDIA_VIDEO) {
+                        creationRequest = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: tempFileURL!)
+                    } else {
+                        creationRequest = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: tempFileURL!)
+                    }
+
+                    // adds to album
+                    if let collection = targetCollection {
+                        let addAssetRequest = PHAssetCollectionChangeRequest(for: collection)
+                        addAssetRequest?.addAssets([creationRequest?.placeholderForCreatedAsset! as Any] as NSArray)
+                    }
+ 
+                } else {
+                    call.error("Could not read '" + path + "' into Data");
                 }
                 
             }, completionHandler: {success, error in
+                // removes the temp file if exist
+                self.removeFile(tempFileURL!)
+                
                 if !success {
-                    call.error("Unable to save gif to album", error)
+                    call.error("Unable to save '" + mediaType + "' to album. Error: ", error)
                 } else {
                     call.success()
                 }
@@ -208,7 +145,8 @@ public class MediaPlugin: CAPPlugin {
             call.error("Access to photos not allowed by user")
         })
     }
-    
+
+
     func checkAuthorization(allowed: @escaping () -> Void, notAllowed: @escaping () -> Void) {
         let status = PHPhotoLibrary.authorizationStatus()
         if status == PHAuthorizationStatus.authorized {
@@ -223,6 +161,7 @@ public class MediaPlugin: CAPPlugin {
             })
         }
     }
+
     
     func fetchAlbumsToJs(_ call: CAPPluginCall) {
         var albums = [JSObject]()
@@ -263,6 +202,7 @@ public class MediaPlugin: CAPPlugin {
             "albums": albums
             ])
     }
+
     
     func fetchResultAssetsToJs(_ call: CAPPluginCall) {
         var assets: [JSObject] = []
@@ -365,4 +305,36 @@ public class MediaPlugin: CAPPlugin {
      PHPhotoLibrary.shared().unregisterChangeObserver(self)
      }
      */
+    
+    func copyToTempFile(_ fromPath: String) -> URL? {
+        let url = URL(string: fromPath)
+        let urlData = NSData(contentsOf: url!)
+        if (urlData != nil) {
+            let tempDirectoryURL = NSURL.fileURL(withPath: NSTemporaryDirectory(), isDirectory: true)
+            let tempFilename = UUID().uuidString + "." + url!.pathExtension
+            let tempFileURL = tempDirectoryURL.appendingPathComponent(tempFilename)
+            
+            // saves input to temp file.
+            urlData!.write(to: tempFileURL, atomically: true)
+            
+            return tempFileURL
+        }
+        
+        // if fails, returns nil
+        return nil;
+    }
+
+    
+    func removeFile(_ atURL: URL?) -> Void {
+        if (atURL != nil) {
+            let fileManager = FileManager.default
+            if fileManager.fileExists(atPath: atURL!.path) {
+                do {
+                    try fileManager.removeItem(atPath: atURL!.path)
+                } catch let error as NSError {
+                    print("Couldn't remove existing file: \(error)")
+                }
+            }
+        }
+    }
 }
