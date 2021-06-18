@@ -37,17 +37,28 @@ public class SaveMediaCallExecutor extends AsyncCallExecutor {
         }
         Log.d(LOG_TAG, "inputPath: " + String.valueOf(inputPath));
 
-        String albumPath;
+        String albumPath = null;
 
         Log.d(LOG_TAG,"SDK BUILD VERSION: " + String.valueOf(Build.VERSION.SDK_INT));
         if (Build.VERSION.SDK_INT >= 29) {
             File[] externalMediaDirs = plugin.getContext().getExternalMediaDirs();
             for (int i=0; i<externalMediaDirs.length; i++) {
-                Log.d(LOG_TAG,"externalMediaDir[" + i + "]: " + String.valueOf(externalMediaDirs[i].getAbsolutePath()));
+                File externalMediaDir = externalMediaDirs[i];
+                if (externalMediaDir != null) {
+                    Log.d(LOG_TAG,"externalMediaDir[" + i + "]: " + String.valueOf(externalMediaDir.getAbsolutePath()));
+                    if (albumPath == null) {
+                        albumPath = externalMediaDir.getAbsolutePath();
+                    }
+                } else {
+                    Log.d(LOG_TAG,"externalMediaDir[" + i + "]: NULL");
+                }
             }
-            albumPath = externalMediaDirs[0].getAbsolutePath();
         } else {
             albumPath = Environment.getExternalStoragePublicDirectory(destination).getAbsolutePath();
+        }
+
+        if (albumPath == null) {
+            throw new Exception("Cannot find an 'ExternalMediaDir' available to save media files");
         }
         Log.d(LOG_TAG,"albumPath: " + String.valueOf(albumPath));
 
